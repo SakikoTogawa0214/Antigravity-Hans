@@ -22,25 +22,60 @@ with open(OVERLAY_PATH, 'r', encoding='utf-8') as f:
     OVERLAY_SOURCE = f.read()
 
 # 应用程序配置
-APP_NORMAL = {
-    'name': 'Antigravity',
-    'exe': 'Antigravity.exe',
-    'port': 9223,
-    'possible_paths': [
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity/Antigravity.exe'),
-        os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity/Antigravity.exe')
-    ]
-}
+IS_WINDOWS = sys.platform == 'win32'
+IS_MAC = sys.platform == 'darwin'
 
-APP_IDE = {
-    'name': 'Antigravity IDE',
-    'exe': 'Antigravity IDE.exe',
-    'port': 9222,
-    'possible_paths': [
-        os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity IDE/Antigravity IDE.exe'),
-        os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity IDE/Antigravity IDE.exe')
-    ]
-}
+if IS_WINDOWS:
+    APP_NORMAL = {
+        'name': 'Antigravity',
+        'exe': 'Antigravity.exe',
+        'port': 9223,
+        'possible_paths': [
+            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity/Antigravity.exe'),
+            os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity/Antigravity.exe')
+        ]
+    }
+    APP_IDE = {
+        'name': 'Antigravity IDE',
+        'exe': 'Antigravity IDE.exe',
+        'port': 9222,
+        'possible_paths': [
+            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity IDE/Antigravity IDE.exe'),
+            os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity IDE/Antigravity IDE.exe')
+        ]
+    }
+elif IS_MAC:
+    APP_NORMAL = {
+        'name': 'Antigravity',
+        'exe': 'Antigravity',
+        'port': 9223,
+        'possible_paths': [
+            '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
+            os.path.expanduser('~/Applications/Antigravity.app/Contents/MacOS/Antigravity')
+        ]
+    }
+    APP_IDE = {
+        'name': 'Antigravity IDE',
+        'exe': 'Electron',
+        'port': 9222,
+        'possible_paths': [
+            '/Applications/Antigravity IDE.app/Contents/MacOS/Electron',
+            os.path.expanduser('~/Applications/Antigravity IDE.app/Contents/MacOS/Electron')
+        ]
+    }
+else:
+    APP_NORMAL = {
+        'name': 'Antigravity',
+        'exe': 'Antigravity.exe',
+        'port': 9223,
+        'possible_paths': []
+    }
+    APP_IDE = {
+        'name': 'Antigravity IDE',
+        'exe': 'Antigravity IDE.exe',
+        'port': 9222,
+        'possible_paths': []
+    }
 
 # 根据参数切换配置
 APP = APP_IDE if '--ide' in sys.argv else APP_NORMAL
@@ -107,6 +142,20 @@ def get_paths_from_registry(app_name, exe_name):
             continue
     return list(paths)
 
+def is_process_match(proc_info, app_config):
+    p_name = (proc_info.get('name') or '').lower()
+    p_exe = (proc_info.get('exe') or '').lower()
+    exe_lower = app_config['exe'].lower()
+    
+    if IS_MAC:
+        # On macOS, check if it's the specific app bundle or exe
+        if 'antigravity ide' in app_config['name'].lower():
+            return 'antigravity ide.app' in p_exe or p_name == 'antigravity ide'
+        else:
+            return 'antigravity.app' in p_exe or p_name == 'antigravity' or os.path.basename(p_exe) == exe_lower
+    else:
+        return p_name == exe_lower or os.path.basename(p_exe) == exe_lower
+
 # 检测运行状态与安装路径
 def detect_app():
     detected = {
@@ -122,16 +171,25 @@ def detect_app():
 
     # 使用 psutil 获取运行中进程的路径和 PID
     try:
-        exe_lower = APP['exe'].lower()
         for proc in psutil.process_iter(['pid', 'name', 'exe']):
             try:
-                p_name = (proc.info['name'] or '').lower()
-                p_exe = (proc.info['exe'] or '').lower()
-                if p_name == exe_lower or os.path.basename(p_exe) == exe_lower:
+                if is_process_match(proc.info, APP):
                     detected['running'] = True
                     detected['pids'].append(proc.info['pid'])
+                    p_exe = proc.info['exe']
                     if p_exe and os.path.exists(p_exe):
-                        detected['path'] = p_exe
+                        if IS_MAC:
+                            is_main_exe = False
+                            if 'antigravity ide' in APP['name'].lower():
+                                if p_exe.endswith('/Contents/MacOS/Electron'):
+                                    is_main_exe = True
+                            else:
+                                if p_exe.endswith('/Contents/MacOS/Antigravity'):
+                                    is_main_exe = True
+                            if is_main_exe:
+                                detected['path'] = p_exe
+                        else:
+                            detected['path'] = p_exe
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
     except Exception:
@@ -164,12 +222,9 @@ def detect_app():
 def kill_process():
     try:
         print(f"正在强制结束已运行的 {APP['name']} 实例...")
-        exe_lower = APP['exe'].lower()
         for proc in psutil.process_iter(['pid', 'name', 'exe']):
             try:
-                p_name = (proc.info['name'] or '').lower()
-                p_exe = (proc.info['exe'] or '').lower()
-                if p_name == exe_lower or os.path.basename(p_exe) == exe_lower:
+                if is_process_match(proc.info, APP):
                     proc.kill()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
@@ -178,13 +233,23 @@ def kill_process():
 
 # 后台启动带调试端口的实例
 def launch(app_path, port):
-    subprocess.Popen(
-        [app_path, f"--remote-debugging-port={port}", "--remote-allow-origins=*"],
-        cwd=os.path.dirname(app_path),
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    cmd = [app_path, f"--remote-debugging-port={port}", "--remote-allow-origins=*"]
+    if IS_WINDOWS:
+        subprocess.Popen(
+            cmd,
+            cwd=os.path.dirname(app_path),
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
+        subprocess.Popen(
+            cmd,
+            cwd=os.path.dirname(app_path),
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
 
 # 检测调试端口状态
 def check_port(port):

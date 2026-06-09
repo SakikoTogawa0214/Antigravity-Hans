@@ -14,29 +14,84 @@ except ImportError:
 import psutil
 
 # 目标程序配置
-APPS = [
-    {
-        'name': 'Antigravity IDE',
-        'exe': 'Antigravity IDE.exe',
-        'possible_paths': [
-            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity IDE/Antigravity IDE.exe'),
-            os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity IDE/Antigravity IDE.exe')
-        ]
-    }
-]
+import sys
+
+IS_WINDOWS = sys.platform == 'win32'
+IS_MAC = sys.platform == 'darwin'
+
+if IS_WINDOWS:
+    APPS = [
+        {
+            'name': 'Antigravity IDE',
+            'exe': 'Antigravity IDE.exe',
+            'possible_paths': [
+                os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs/Antigravity IDE/Antigravity IDE.exe'),
+                os.path.join(os.environ.get('ProgramFiles', ''), 'Antigravity IDE/Antigravity IDE.exe')
+            ]
+        }
+    ]
+elif IS_MAC:
+    APPS = [
+        {
+            'name': 'Antigravity IDE',
+            'exe': 'Electron',
+            'possible_paths': [
+                '/Applications/Antigravity IDE.app/Contents/MacOS/Electron',
+                os.path.expanduser('~/Applications/Antigravity IDE.app/Contents/MacOS/Electron')
+            ]
+        }
+    ]
+else:
+    APPS = []
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 OVERLAY_JS_SRC = os.path.join(CURRENT_DIR, 'antigravity-hans-overlay.js')
 
-def check_process_running(exe_name):
-    """检测指定可执行文件是否有进程在运行"""
+def get_resources_dir(app):
+    """根据应用实例的可执行文件路径，获取对应的 resources 目录路径"""
+    exe_path = app['exe_path']
+    app_dir = app['dir'] # This is os.path.dirname(exe_path)
+    if IS_MAC:
+        # On macOS, if path is Contents/MacOS/Electron, resources is Contents/Resources
+        parent = os.path.dirname(app_dir) # .../Contents
+        resources = os.path.join(parent, "Resources")
+        if os.path.exists(resources):
+            return resources
+    return os.path.join(app_dir, "resources")
+
+def check_process_running(app):
+    """检测指定 App 实例是否有进程在运行"""
+    app_name = app['name']
+    exe_name = app['exe']
     exe_lower = exe_name.lower()
+    exe_path = app.get('exe_path')
     running_pids = []
+    
     for proc in psutil.process_iter(['pid', 'name', 'exe']):
         try:
             p_name = (proc.info['name'] or '').lower()
             p_exe = (proc.info['exe'] or '').lower()
+            
+            # 1. 优先使用绝对路径匹配
+            if exe_path and p_exe:
+                if os.path.normpath(p_exe) == os.path.normpath(exe_path.lower()):
+                    running_pids.append(proc.info['pid'])
+                    continue
+            
+            # 2. 如果是 macOS 平台，进行额外的 bundle 路径检测
+            if IS_MAC:
+                if 'antigravity ide' in app_name.lower() and ('antigravity ide.app' in p_exe or p_name == 'antigravity ide'):
+                    running_pids.append(proc.info['pid'])
+                    continue
+                elif 'antigravity' in app_name.lower() and ('antigravity.app' in p_exe or p_name == 'antigravity'):
+                    running_pids.append(proc.info['pid'])
+                    continue
+            
+            # 3. 兜底通过可执行文件名匹配
             if p_name == exe_lower or os.path.basename(p_exe) == exe_lower:
+                # 避免 macOS 上误杀/误判其他 Electron 实例
+                if IS_MAC and exe_lower == 'electron':
+                    continue
                 running_pids.append(proc.info['pid'])
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
@@ -137,13 +192,13 @@ def install_patch(app):
     print(f"\n>>> 正在为 {app['name']} 注入汉化补丁...")
     
     # 检测运行状态
-    pids = check_process_running(app['exe'])
+    pids = check_process_running(app)
     if pids:
         print(f"[警告] 检测到 {app['name']} 正在运行 (PID: {pids})。")
         print("为了避免文件被系统占用，请先手动关闭该应用，然后重新运行本脚本。")
         return False
         
-    resources_dir = os.path.join(app['dir'], "resources")
+    resources_dir = get_resources_dir(app)
     app_dir = os.path.join(resources_dir, "app")
     
     try:
@@ -275,13 +330,13 @@ def uninstall_patch(app):
     print(f"\n>>> 正在还原 {app['name']} 至原始状态...")
     
     # 检测运行状态
-    pids = check_process_running(app['exe'])
+    pids = check_process_running(app)
     if pids:
         print(f"[警告] 检测到 {app['name']} 正在运行 (PID: {pids})。")
         print("为了避免还原失败，请先手动关闭该应用。")
         return False
         
-    resources_dir = os.path.join(app['dir'], "resources")
+    resources_dir = get_resources_dir(app)
     app_dir = os.path.join(resources_dir, "app")
     
     try:

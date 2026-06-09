@@ -21,13 +21,26 @@
 
 ## 快速开始
 
-在 Windows 环境下：
+### 在 Windows 环境下：
 
 1. **运行启动器**  
    双击运行根目录下的 `start.cmd`。它会自动检查环境，并在需要时在当前目录创建 `.venv` 虚拟环境并安装运行依赖 (`psutil`, `websocket-client`)。
 
 2. **选择汉化模式**  
-   在终端菜单中输入对应的数字即可
+   在终端菜单中输入对应的数字即可。
+
+### 在 macOS / Linux 环境下：
+
+1. **授权并运行启动器**  
+   在终端中运行以下命令：
+   ```bash
+   chmod +x start.sh
+   ./start.sh
+   ```
+   它会自动检查环境，并在需要时在当前目录创建 `.venv` 虚拟环境并安装运行依赖 (`psutil`, `websocket-client`)。
+
+2. **选择汉化模式**  
+   在终端菜单中输入对应的数字即可。
 
 ---
 
@@ -53,6 +66,7 @@
 ├── antigravity-ide-patch.py    # 静态补丁汉化脚本
 ├── antigravity-hans-overlay.js # 核心汉化字典与 DOM 替换补丁
 ├── start.cmd                   # Windows 启动引导脚本
+├── start.sh                    # macOS / Linux 启动引导脚本
 └── README.md                   # 项目说明文档
 ```
 
