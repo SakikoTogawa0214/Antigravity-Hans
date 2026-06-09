@@ -1,0 +1,95 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - VERSION
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 编译并发布
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 读取版本号
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+          echo "版本号: ${VERSION}"
+
+      - name: 配置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 编译 macOS ARM64（Apple Silicon）
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.tag }}" \
+            -o dist/antigravity-hans-macos-arm64 .
+
+      - name: 编译 macOS AMD64（Intel）
+        env:
+          GOOS: darwin
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.tag }}" \
+            -o dist/antigravity-hans-macos-amd64 .
+
+      - name: 编译 Windows AMD64
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.tag }}" \
+            -o dist/antigravity-hans-windows-amd64.exe .
+
+      - name: 查看产物
+        run: ls -lh dist/
+
+      - name: 发布到 GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Antigravity-Hans ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Antigravity-Hans ${{ steps.version.outputs.tag }}
+
+            ### 下载
+
+            | 平台 | 文件 |
+            |------|------|
+            | Windows x64 | `antigravity-hans-windows-amd64.exe` |
+            | macOS Apple Silicon | `antigravity-hans-macos-arm64` |
+            | macOS Intel | `antigravity-hans-macos-amd64` |
+
+            ### macOS 使用说明
+
+            ```bash
+            chmod +x antigravity-hans-macos-arm64
+            ./antigravity-hans-macos-arm64
+            ```
+
+            > 若提示"无法验证开发者"，请前往「系统设置 → 隐私与安全性」点击「仍要打开」。
+          files: |
+            dist/antigravity-hans-macos-arm64
+            dist/antigravity-hans-macos-amd64
+            dist/antigravity-hans-windows-amd64.exe
+          draft: false
+          prerelease: false

@@ -1,2 +1,5 @@
-.venv
-__pycache__
+# Go 编译产物
+dist/
+
+# 内嵌的 overlay.js 副本（由 build.sh 自动同步，无需提交）
+antigravity-hans-overlay.js
