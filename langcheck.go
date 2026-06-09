@@ -118,8 +118,9 @@ func setIDELocale(locale string) error {
 		return fmt.Errorf("无法确定 argv.json 路径")
 	}
 
-	re := regexp.MustCompile(`"locale"\s*:\s*"[^"]*"`)
-	newField := fmt.Sprintf(`"locale": "%s"`, locale)
+	re := regexp.MustCompile(`(?m)^([^/\n]*)"locale"\s*:\s*"[^"]*"`)
+	replaceField := fmt.Sprintf(`$1"locale": "%s"`, locale)
+	initialField := fmt.Sprintf(`"locale": "%s"`, locale)
 
 	var lastErr error
 	written := 0
@@ -135,7 +136,7 @@ func setIDELocale(locale string) error {
 					continue
 				}
 				// 写入初始的 json 配置
-				initialContent := fmt.Sprintf("{\n\t%s\n}\n", newField)
+				initialContent := fmt.Sprintf("{\n\t%s\n}\n", initialField)
 				if err := os.WriteFile(argvPath, []byte(initialContent), 0644); err != nil {
 					lastErr = fmt.Errorf("创建并写入 %s 失败: %v", argvPath, err)
 					continue
@@ -150,7 +151,7 @@ func setIDELocale(locale string) error {
 
 		// 替换已有的 locale 字段
 		if re.MatchString(content) {
-			content = re.ReplaceAllString(content, newField)
+			content = re.ReplaceAllString(content, replaceField)
 		} else {
 			// 没有 locale 字段，插入到最后一个 } 前
 			lastBrace := strings.LastIndex(content, "}")
@@ -162,7 +163,7 @@ func setIDELocale(locale string) error {
 			if !strings.HasSuffix(before, ",") && !strings.HasSuffix(before, "{") {
 				before += ","
 			}
-			content = before + "\n\t" + newField + "\n" + content[lastBrace:]
+			content = before + "\n\t" + initialField + "\n" + content[lastBrace:]
 		}
 
 		if err := os.WriteFile(argvPath, []byte(content), 0644); err != nil {
@@ -244,18 +245,18 @@ func CheckAndPromptZhLangPack(reader *bufio.Reader) {
 	fmt.Println()
 
 	if !packInstalled {
-		fmt.Printf("  ✗ 未检测到中文语言包 (%s)\n", zhLangPackID)
+		fmt.Printf("  [-] 未检测到中文语言包 (%s)\n", zhLangPackID)
 	} else {
-		fmt.Println("  ✓ 中文语言包已安装")
+		fmt.Println("  [OK] 中文语言包已安装")
 	}
 	if !localeIsZh {
 		currentLocale := locale
 		if currentLocale == "" {
 			currentLocale = "(未设置)"
 		}
-		fmt.Printf("  ✗ 界面语言未设置为中文（当前: %s）\n", currentLocale)
+		fmt.Printf("  [-] 界面语言未设置为中文（当前: %s）\n", currentLocale)
 	} else {
-		fmt.Println("  ✓ 界面语言已设置为中文")
+		fmt.Println("  [OK] 界面语言已设置为中文")
 	}
 
 	fmt.Println()
@@ -275,7 +276,7 @@ func CheckAndPromptZhLangPack(reader *bufio.Reader) {
 			if !packInstalled {
 				success = installZhLangPackCLI(cliPath)
 			}
-			if success && !localeIsZh {
+			if success {
 				applyZhLocale()
 			}
 		} else {
@@ -308,7 +309,7 @@ func installZhLangPackCLI(cliPath string) bool {
 	}
 
 	fmt.Println()
-	fmt.Println("  ✓ 中文语言包安装成功！")
+	fmt.Println("  [OK] 中文语言包安装成功！")
 	return true
 }
 
@@ -320,14 +321,15 @@ func applyZhLocale() {
 		fmt.Println("  请手动在 IDE 中按 Ctrl+Shift+P，搜索「Configure Display Language」进行设置。")
 		return
 	}
-	fmt.Println("  ✓ 界面语言已设置为中文！")
+	fmt.Println("  [OK] 界面语言已设置为中文！")
 	fmt.Println()
 	if IsMac {
-		fmt.Println("  ⚠️  请完全退出并重启 Antigravity IDE 以生效：")
+		fmt.Println("  [注意] 请完全退出并重启 Antigravity IDE 以生效（可能需要重启 1-2 次以刷新语言缓存）：")
 		fmt.Println("     macOS: 菜单栏 → Antigravity IDE → 退出 (Cmd+Q)")
-		fmt.Println("     注意：仅关闭窗口（红色×）不会退出应用，必须 Cmd+Q！")
+		fmt.Println("     注意：仅关闭窗口（关闭按钮）不会退出应用，必须 Cmd+Q！")
 	} else {
-		fmt.Println("  ⚠️  请完全关闭并重启 Antigravity IDE 以生效。")
+		fmt.Println("  [注意] 请完全关闭并重启 Antigravity IDE 以生效。")
+		fmt.Println("     (由于 IDE 内部存在缓存机制，可能需要手动关闭并重新打开 1-2 次)")
 	}
 }
 
