@@ -32,7 +32,6 @@
     ['Email', '邮箱'],
     ['Local', '本地'],
     ['Rules', '规则'],
-    ['Start', '启动'],
     ['Strict', '严格'],
     ['Accent', '强调色'],
     ['Cancel', '取消'],
@@ -680,17 +679,25 @@
     const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     if (!element) return false;
 
-    // 过滤代码及编辑器
+    // 过滤代码与编辑器
     if (element.closest('script, style, textarea, code, pre, .xterm, .monaco-editor')) {
       return true;
     }
 
-    // 过滤输入框
-    if (element.closest('[contenteditable="true"], [contenteditable=""], input')) {
-      return true;
+    // 过滤输入框文本
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (element.closest('[contenteditable="true"], [contenteditable=""], input')) {
+        return true;
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // 过滤嵌套编辑框子元素
+      const parent = node.parentElement;
+      if (parent && parent.closest('[contenteditable="true"], [contenteditable=""], input')) {
+        return true;
+      }
     }
 
-    // 过滤历史对话项标题
+    // 过滤对话历史标题
     const historyItem = element.closest('.past-conversations, .conversation-list, .history-list, .conversations-list, [data-testid="history-list"], [data-testid="past-conversations"], .conversation-item, .convo-item, .history-item, [class*="history-item"], [class*="convo-item"]');
     if (historyItem) {
       const isActionBtn = element.closest('button[aria-label], button[title], [class*="delete"], [class*="pin"], [class*="archive"]');
@@ -702,17 +709,50 @@
       return true;
     }
 
-    // 过滤模型原始回复文本
+    // 过滤模型回复（仅汉化交互控件）
     const agentResponse = element.closest('[aria-label="Agent response"], [aria-label="智能体回复"]');
     if (agentResponse) {
-      const isInteractive = element.closest('button, [role="button"], [class*="command"], [class*="permission"], [class*="action"], [class*="card"], [class*="button-container"]');
+      const isInteractive = element.closest('button, [role="button"], [class*="action"], [class*="button-container"]');
       if (!isInteractive) return true;
     }
 
     return false;
   }
 
+  function isInAntigravityContainer(node) {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!element) return false;
+
+    // 仅主窗口启用白名单保护原生 UI
+    const isMainWindow = window.location.pathname.endsWith('workbench.html') ||
+      window.location.href.indexOf('/workbench.html') >= 0 ||
+      window.location.href.indexOf('\\workbench.html') >= 0;
+    if (!isMainWindow) return true;
+
+    // 仅汉化专属组件与浮层
+    const containerSelector = [
+      '[class*="antigravity"]',
+      '[id*="antigravity"]',
+      '.client-experience-pill',
+      '.diff-hunk-widget',
+      '.keep-changes',
+      '.discard-changes',
+      '.monaco-dialog-box',
+      '.dialog-box',
+      '[role="dialog"]',
+      '.inline-chat-widget',
+      '.inline-chat-overflow',
+      '.monaco-hover',
+      '.monaco-hover-content',
+      '.context-view',
+      '.monaco-select-box'
+    ].join(', ');
+
+    return !!element.closest(containerSelector);
+  }
+
   function translateElement(element) {
+    if (!isInAntigravityContainer(element)) return;
     for (const attr of ['aria-label', 'title', 'placeholder', 'alt']) {
       const value = element.getAttribute?.(attr);
       if (!value) continue;
@@ -725,6 +765,7 @@
     if (!root) return;
     if (shouldSkip(root)) return;
     if (root.nodeType === Node.TEXT_NODE) {
+      if (!isInAntigravityContainer(root)) return;
       if (root.__zh_patched) return;
       const val = root.nodeValue || '';
       const translated = translate(val);
@@ -743,6 +784,7 @@
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (shouldSkip(node)) continue;
       if (node.nodeType === Node.TEXT_NODE) {
+        if (!isInAntigravityContainer(node)) continue;
         if (node.__zh_patched) continue;
         const val = node.nodeValue || '';
         const translated = translate(val);
@@ -759,21 +801,37 @@
   function run() {
     document.documentElement.lang = 'zh-CN';
     translateNode(document);
+
     new MutationObserver((mutations) => {
+      const nodesToTranslate = [];
+      const elementsToTranslate = [];
+
       for (const mutation of mutations) {
         if (mutation.type === 'characterData') {
           const target = mutation.target;
           target.__zh_patched = false;
-          translateNode(target);
+          nodesToTranslate.push(target);
         } else if (mutation.type === 'attributes') {
           const target = mutation.target;
           target.__zh_patched = false;
-          translateElement(target);
+          elementsToTranslate.push(target);
         } else {
           for (const node of mutation.addedNodes) {
-            translateNode(node);
+            nodesToTranslate.push(node);
           }
         }
+      }
+
+      if (nodesToTranslate.length > 0 || elementsToTranslate.length > 0) {
+        // 延时执行以确保节点已完全挂载
+        setTimeout(() => {
+          for (const node of nodesToTranslate) {
+            translateNode(node);
+          }
+          for (const el of elementsToTranslate) {
+            translateElement(el);
+          }
+        }, 0);
       }
     }).observe(document, {
       childList: true,
