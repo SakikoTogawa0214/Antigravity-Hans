@@ -100,6 +100,11 @@ func main() {
 
 func runMainMenu(overlaySource string) {
 	reader := bufio.NewReader(os.Stdin)
+
+	// 启动时一次性检测中文语言包
+	CheckAndPromptZhLangPack(reader)
+	clearScreen()
+
 	for {
 		fmt.Print(getBanner())
 		fmt.Println("Antigravity-Hans 启动器")

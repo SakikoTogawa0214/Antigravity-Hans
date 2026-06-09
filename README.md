@@ -51,6 +51,18 @@ chmod +x antigravity-hans-macos-amd64
 
 ---
 
+## 中文语言包检测
+
+首次启动时，工具会自动检测 Antigravity IDE 是否已安装官方中文语言包（`ms-ceintl.vscode-language-pack-zh-hans`）及界面语言设置，并在未配置时进行引导：
+
+- **自动安装**：调用 IDE 命令行工具一键安装语言包，并自动将 `argv.json` 中的 `locale` 设置为 `zh-cn`。
+- **手动指引**：若 CLI 不可用，则打印在扩展市场手动安装的操作步骤。
+- 语言包安装后，IDE 界面（菜单、状态栏、提示等）将切换为中文，与本工具的动态汉化相互补充，覆盖更完整。
+
+> **macOS 提示**：设置生效需**完全退出** IDE（菜单栏 → Cmd+Q），仅关闭窗口不会退出应用。
+
+---
+
 ## 命令行参数
 
 ```bash
@@ -58,6 +70,11 @@ chmod +x antigravity-hans-macos-amd64
 antigravity-hans --app    # 动态汉化 Antigravity
 antigravity-hans --ide    # 动态汉化 Antigravity IDE
 antigravity-hans --patch  # 静态补丁菜单
+
+# 快捷方式生成
+antigravity-hans --shortcut        # 为两者生成中文快捷方式
+antigravity-hans --shortcut --app  # 仅 Antigravity
+antigravity-hans --shortcut --ide  # 仅 Antigravity IDE
 ```
 
 ---
