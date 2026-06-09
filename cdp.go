@@ -15,9 +15,9 @@ import (
 
 // CDPTarget 调试目标页面
 type CDPTarget struct {
-	ID                  string `json:"id"`
-	Type                string `json:"type"`
-	Title               string `json:"title"`
+	ID                   string `json:"id"`
+	Type                 string `json:"type"`
+	Title                string `json:"title"`
 	WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 }
 
@@ -396,8 +396,8 @@ func Watch(cfg AppConfig, overlaySource string, injectedSet map[string]bool, mu 
 						}
 					}
 					// 限制标题打印长度，防止超长 data:text 撑爆控制台
-					if len(title) > 60 {
-						title = title[:57] + "..."
+					if len(title) > 300 {
+						title = title[:297] + "..."
 					}
 					fmt.Printf("[事件驱动] 捕获到目标页面变动，成功注入汉化: %s (ID: %s)\n", title, t.ID)
 				}
