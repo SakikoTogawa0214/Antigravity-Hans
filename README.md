@@ -41,7 +41,7 @@ chmod +x antigravity-hans-macos-amd64
 
 ### 1. 动态汉化
 - **原理**：以 `--remote-debugging-port` 启动目标应用，通过 CDP WebSocket 向页面注入 `antigravity-hans-overlay.js`。
-- **特点**：不修改任何本地程序文件，安全无痕；内置监视模式，每 3 秒检测一次，页面刷新后自动重新注入。
+- **特点**：不修改任何本地程序文件，安全无痕；基于 CDP 事件订阅监听，在新窗口打开、新 Tab 建立或页面重载时，实时捕获并立即完成汉化注入，彻底消除轮询开销。
 - **缺点**：每次启动应用后需重新运行本工具。
 
 ### 2. 静态汉化补丁（实验性）
@@ -55,11 +55,9 @@ chmod +x antigravity-hans-macos-amd64
 
 ```bash
 # 直接启动（跳过菜单）
-antigravity-hans --run           # 动态汉化 Antigravity
-antigravity-hans --run --ide     # 动态汉化 Antigravity IDE
-antigravity-hans --watch         # 仅监视模式（不重启应用）
-antigravity-hans --watch --ide
-antigravity-hans --patch         # 静态补丁菜单
+antigravity-hans --app    # 动态汉化 Antigravity
+antigravity-hans --ide    # 动态汉化 Antigravity IDE
+antigravity-hans --patch  # 静态补丁菜单
 ```
 
 ---

@@ -725,20 +725,33 @@
     if (!root) return;
     if (shouldSkip(root)) return;
     if (root.nodeType === Node.TEXT_NODE) {
-      const translated = translate(root.nodeValue || '');
-      if (translated !== root.nodeValue) root.nodeValue = translated;
+      if (root.__zh_patched) return;
+      const val = root.nodeValue || '';
+      const translated = translate(val);
+      if (translated !== val) root.nodeValue = translated;
+      root.__zh_patched = true;
       return;
     }
     if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE) return;
-    if (root.nodeType === Node.ELEMENT_NODE) translateElement(root);
+    if (root.nodeType === Node.ELEMENT_NODE) {
+      if (!root.__zh_patched) {
+        translateElement(root);
+        root.__zh_patched = true;
+      }
+    }
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (shouldSkip(node)) continue;
       if (node.nodeType === Node.TEXT_NODE) {
-        const translated = translate(node.nodeValue || '');
-        if (translated !== node.nodeValue) node.nodeValue = translated;
+        if (node.__zh_patched) continue;
+        const val = node.nodeValue || '';
+        const translated = translate(val);
+        if (translated !== val) node.nodeValue = translated;
+        node.__zh_patched = true;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.__zh_patched) continue;
         translateElement(node);
+        node.__zh_patched = true;
       }
     }
   }
@@ -749,11 +762,17 @@
     new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'characterData') {
-          translateNode(mutation.target);
+          const target = mutation.target;
+          target.__zh_patched = false;
+          translateNode(target);
         } else if (mutation.type === 'attributes') {
-          translateElement(mutation.target);
+          const target = mutation.target;
+          target.__zh_patched = false;
+          translateElement(target);
         } else {
-          for (const node of mutation.addedNodes) translateNode(node);
+          for (const node of mutation.addedNodes) {
+            translateNode(node);
+          }
         }
       }
     }).observe(document, {
@@ -771,3 +790,4 @@
     run();
   }
 })();
+

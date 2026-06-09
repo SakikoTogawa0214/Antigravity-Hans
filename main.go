@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 )
 
@@ -41,26 +40,30 @@ func main() {
 
 	// 命令行参数模式（非交互）
 	args := os.Args[1:]
-	if containsArg(args, "--watch") {
-		cfg := AppNormal
-		if containsArg(args, "--ide") {
-			cfg = AppIDE
+	if len(args) > 0 {
+		// 静态补丁参数
+		if containsArg(args, "--patch") || containsArg(args, "-patch") {
+			runPatchMenu(overlaySource)
+			return
 		}
-		injectedSet := make(map[string]bool)
-		var mu sync.Mutex
-		Watch(cfg, overlaySource, injectedSet, &mu)
-		return
-	}
-	if containsArg(args, "--run") {
-		cfg := AppNormal
-		if containsArg(args, "--ide") {
-			cfg = AppIDE
+
+		// 动态汉化参数
+		isApp := containsArg(args, "--app") || containsArg(args, "-app")
+		isIDE := containsArg(args, "--ide") || containsArg(args, "-ide")
+
+		if isIDE {
+			Run(AppIDE, overlaySource)
+			return
+		} else if isApp {
+			Run(AppNormal, overlaySource)
+			return
 		}
-		Run(cfg, overlaySource)
-		return
-	}
-	if containsArg(args, "--patch") {
-		runPatchMenu(overlaySource)
+
+		// 传入了无效的参数，输出提示
+		fmt.Println("未知的命令行参数。用法：")
+		fmt.Println("  antigravity-hans --app    # 动态汉化 Antigravity")
+		fmt.Println("  antigravity-hans --ide    # 动态汉化 Antigravity IDE")
+		fmt.Println("  antigravity-hans --patch  # 静态补丁菜单")
 		return
 	}
 

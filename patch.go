@@ -89,6 +89,15 @@ func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
 		return false
 	}
 
+	// 提前进行写权限校验
+	testFile := filepath.Join(workbenchDir, ".write_test")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		fmt.Println("[错误] 目录写入权限不足，无法安装补丁。")
+		fmt.Println("       如果应用安装在系统敏感目录（如 Program Files），请尝试“以管理员身份运行”此程序。")
+		return false
+	}
+	os.Remove(testFile)
+
 	// 检测是否已注入
 	htmlFiles := []string{"workbench.html", "workbench-jetski-agent.html"}
 	for _, htmlName := range htmlFiles {
@@ -147,8 +156,15 @@ func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
 			html = strings.Replace(html, "</body>", scriptTag+"\n</body>", 1)
 		}
 
-		if err := os.WriteFile(htmlPath, []byte(html), 0644); err != nil {
-			fmt.Printf("[错误] 写入 %s 失败: %v\n", htmlName, err)
+		// 原子方式写入 HTML
+		tmpPath := htmlPath + ".tmp"
+		if err := os.WriteFile(tmpPath, []byte(html), 0644); err != nil {
+			fmt.Printf("[错误] 写入临时文件失败: %v\n", err)
+			return false
+		}
+		if err := os.Rename(tmpPath, htmlPath); err != nil {
+			os.Remove(tmpPath)
+			fmt.Printf("[错误] 替换 %s 失败: %v\n", htmlName, err)
 			return false
 		}
 		fmt.Printf("[成功] 已更新 HTML 文件: %s\n", htmlName)

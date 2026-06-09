@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -158,63 +159,33 @@ func InjectTarget(target CDPTarget, overlaySource string, injectedSet map[string
 	return nil
 }
 
-// WaitAndInject 轮询等待调试端口就绪并注入，返回成功注入的页面数
-func WaitAndInject(port int, maxWaitMs int, overlaySource string, injectedSet map[string]bool, mu *sync.Mutex) int {
+// WaitForPort 等待调试端口就绪
+func WaitForPort(port int, maxWaitMs int) bool {
 	start := time.Now()
 	limit := time.Duration(maxWaitMs) * time.Millisecond
 	for time.Since(start) < limit {
 		targets := CheckPort(port)
 		if len(targets) > 0 {
-			count := 0
-			for _, t := range targets {
-				mu.Lock()
-				alreadyInjected := injectedSet[t.ID]
-				mu.Unlock()
-				if alreadyInjected && IsTargetInjected(t) {
-					continue
-				}
-				if err := InjectTarget(t, overlaySource, injectedSet, mu); err != nil {
-					fmt.Printf("向页面注入失败: %v\n", err)
-				} else {
-					count++
-				}
-			}
-			if count > 0 {
-				return count
-			}
+			return true
 		}
-		time.Sleep(800 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
-	return 0
+	return false
 }
 
-// Run 普通运行模式：检测 -> 重启 -> 注入 -> 监视
+// Run 普通运行模式：检测 -> 重启 -> 监视
 func Run(cfg AppConfig, overlaySource string) {
 	injectedSet := make(map[string]bool)
 	var mu sync.Mutex
 
 	app := DetectApp(cfg)
 
-	// 1. 已开启调试端口，直接注入
+	// 1. 已开启调试端口，直接进入监视模式
 	targets := CheckPort(app.Port)
 	if len(targets) > 0 {
-		count := 0
-		for _, t := range targets {
-			mu.Lock()
-			alreadyInjected := injectedSet[t.ID]
-			mu.Unlock()
-			if alreadyInjected && IsTargetInjected(t) {
-				continue
-			}
-			if err := InjectTarget(t, overlaySource, injectedSet, &mu); err == nil {
-				count++
-			}
-		}
-		if count > 0 {
-			fmt.Printf("已成功向已开启调试的 %s 注入中文汉化。\n", app.Name)
-			Watch(cfg, overlaySource, injectedSet, &mu)
-			return
-		}
+		fmt.Printf("检测到 %s 调试端口已开启，直接进入监视模式...\n", app.Name)
+		Watch(cfg, overlaySource, injectedSet, &mu)
+		return
 	}
 
 	// 2. 进程在运行但未开启调试端口，先结束它
@@ -249,96 +220,188 @@ func Run(cfg AppConfig, overlaySource string) {
 		}
 	}
 
-	// 4. 启动 + 注入
+	// 4. 启动 + 监视
 	fmt.Printf("正在以调试模式启动 %s: %s ...\n", app.Name, targetPath)
 	if err := LaunchWithDebug(targetPath, app.Port); err != nil {
 		fmt.Printf("[ERROR] 启动失败: %v\n", err)
 		return
 	}
-	fmt.Printf("正在等待 %s 调试端口就绪并注入...\n", app.Name)
-	count := WaitAndInject(app.Port, 20000, overlaySource, injectedSet, &mu)
-	if count > 0 {
-		fmt.Printf("[成功] 已向 %s 页面应用中文汉化。\n", app.Name)
+	fmt.Printf("正在等待 %s 调试端口就绪并建立监视...\n", app.Name)
+	if WaitForPort(app.Port, 20000) {
+		fmt.Printf("[成功] %s 调试接口已就绪。\n", app.Name)
 	} else {
-		fmt.Printf("[ERROR] 向 %s 注入超时，可能是启动过慢或被拦截。\n", app.Name)
+		fmt.Printf("[警告] 等待 %s 调试端口超时，尝试直接连接...\n", app.Name)
 	}
 
 	Watch(cfg, overlaySource, injectedSet, &mu)
 }
 
-// Watch 监视模式：持续检测并重新注入
+// getBrowserWSURL 获取浏览器级别的 WebSocket 调试端点 URL
+func getBrowserWSURL(port int) (string, error) {
+	url := fmt.Sprintf("http://127.0.0.1:%d/json/version", port)
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP 状态码错误: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var versionInfo map[string]string
+	if err := json.Unmarshal(body, &versionInfo); err != nil {
+		return "", err
+	}
+	wsURL := versionInfo["webSocketDebuggerUrl"]
+	if wsURL == "" {
+		return "", fmt.Errorf("webSocketDebuggerUrl 为空")
+	}
+	return wsURL, nil
+}
+
+// Watch 监视模式：使用 CDP Target 事件订阅彻底取代轮询
 func Watch(cfg AppConfig, overlaySource string, injectedSet map[string]bool, mu *sync.Mutex) {
-	fmt.Printf("启动 %s 汉化监视模式 (每3秒检测一次)...\n", cfg.Name)
+	fmt.Printf("启动 %s 汉化监视模式 (CDP 事件驱动型)...\n", cfg.Name)
 
-	app := DetectApp(cfg)
-	if app.Running && CheckPort(app.Port) == nil {
-		fmt.Printf("检测到 %s 正在运行但未开启调试，正在重启...\n", app.Name)
-		KillProcess(cfg)
-		time.Sleep(1 * time.Second)
+	var wsURL string
+	var err error
+
+	// 1. 等待端口就绪并获取浏览器 WebSocket 连接 URL
+	for i := 0; i < 40; i++ {
+		wsURL, err = getBrowserWSURL(cfg.Port)
+		if err == nil && wsURL != "" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	app = DetectApp(cfg)
-	if CheckPort(app.Port) == nil && !app.Running && app.Path != "" {
-		fmt.Printf("正在自动拉起 %s...\n", app.Name)
-		_ = LaunchWithDebug(app.Path, app.Port)
+	if err != nil || wsURL == "" {
+		fmt.Printf("[错误] 无法连接到 %s 调试接口: %v\n", cfg.Name, err)
+		return
 	}
 
-	everRunning := false
-	emptyChecks := 0
+	// 2. 连接到 Browser 级调试会话
+	dialer := websocket.DefaultDialer
+	conn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		fmt.Printf("[错误] 建立 CDP 事件长连接失败: %v\n", err)
+		return
+	}
+	defer conn.Close()
 
+	// 3. 启用 Target 发现
+	discoverCmd := map[string]interface{}{
+		"id":     1,
+		"method": "Target.setDiscoverTargets",
+		"params": map[string]bool{
+			"discover": true,
+		},
+	}
+	discoverJSON, _ := json.Marshal(discoverCmd)
+	if err := conn.WriteMessage(websocket.TextMessage, discoverJSON); err != nil {
+		fmt.Printf("[错误] 发送 Target.setDiscoverTargets 失败: %v\n", err)
+		return
+	}
+
+	fmt.Println("[成功] 汉化监视连接已建立，进入事件驱动注入状态。")
+
+	// 4. 事件监听循环
+	type TargetInfo struct {
+		TargetID string `json:"targetId"`
+		Type     string `json:"type"`
+		Title    string `json:"title"`
+		URL      string `json:"url"`
+	}
+	type CDPNotification struct {
+		Method string `json:"method"`
+		Params struct {
+			TargetInfo TargetInfo `json:"targetInfo"`
+		} `json:"params"`
+	}
+
+	ignoredTypes := map[string]bool{
+		"worker": true, "service_worker": true,
+		"shared_worker": true, "background_page": true,
+	}
 	for {
-		app = DetectApp(cfg)
-		if app.Running {
-			everRunning = true
-			emptyChecks = 0
-		} else {
-			if everRunning {
-				fmt.Printf("检测到 %s 已退出，自动结束汉化监视。\n", cfg.Name)
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			// 连接断开，等待 1.5 秒以确保进程有足够时间彻底关闭并被操作系统回收
+			fmt.Printf("与 %s 调试端口的连接断开，正在确认应用状态...\n", cfg.Name)
+			time.Sleep(1500 * time.Millisecond)
+			app := DetectApp(cfg)
+			if !app.Running {
+				fmt.Printf("检测到 %s 已退出，结束汉化监视。\n", cfg.Name)
 				return
 			}
-			emptyChecks++
-			if emptyChecks >= 15 {
-				fmt.Println("超时未检测到运行中的实例，自动结束汉化监视。")
-				return
-			}
+			Watch(cfg, overlaySource, injectedSet, mu)
+			return
 		}
 
-		// 检测并注入新页面
-		activeTargetIDs := make(map[string]bool)
-		targets := CheckPort(app.Port)
-		for _, t := range targets {
-			if t.ID != "" {
-				activeTargetIDs[t.ID] = true
-				mu.Lock()
-				alreadyInjected := injectedSet[t.ID]
-				mu.Unlock()
-				if !alreadyInjected || !IsTargetInjected(t) {
-					if err := InjectTarget(t, overlaySource, injectedSet, mu); err != nil {
-						title := t.Title
-						if title == "" {
-							title = "未命名"
+		var notif CDPNotification
+		if err := json.Unmarshal(msg, &notif); err != nil {
+			continue
+		}
+
+		// 捕获新页面创建与页面信息变更（如重载、重定向）
+		if notif.Method == "Target.targetCreated" || notif.Method == "Target.targetInfoChanged" {
+			info := notif.Params.TargetInfo
+			if info.TargetID == "" || ignoredTypes[info.Type] {
+				continue
+			}
+
+			// 只监听主要的汉化页面标识
+			urlLower := strings.ToLower(info.URL)
+			var isTargetPage bool
+			if cfg.Port == 9222 { // IDE 版
+				isTargetPage = strings.HasSuffix(urlLower, "workbench.html") ||
+					strings.HasSuffix(urlLower, "workbench-jetski-agent.html") ||
+					strings.Contains(urlLower, "workbench.html?") ||
+					strings.Contains(urlLower, "workbench-jetski-agent.html?")
+			} else { // 普通版 Antigravity
+				isTargetPage = strings.HasPrefix(urlLower, "data:text/html") ||
+					strings.Contains(urlLower, "127.0.0.1") ||
+					strings.Contains(urlLower, "localhost")
+			}
+
+			if !isTargetPage {
+				continue
+			}
+
+			t := CDPTarget{
+				ID:                   info.TargetID,
+				Type:                 info.Type,
+				Title:                info.Title,
+				WebSocketDebuggerURL: fmt.Sprintf("ws://127.0.0.1:%d/devtools/page/%s", cfg.Port, info.TargetID),
+			}
+
+			mu.Lock()
+			alreadyInjected := injectedSet[t.ID]
+			mu.Unlock()
+
+			if !alreadyInjected || !IsTargetInjected(t) {
+				if err := InjectTarget(t, overlaySource, injectedSet, mu); err == nil {
+					title := t.Title
+					if title == "" {
+						if strings.HasPrefix(urlLower, "data:text/html") {
+							title = "首屏加载页"
+						} else if strings.Contains(urlLower, "127.0.0.1") || strings.Contains(urlLower, "localhost") {
+							title = "应用主页面"
+						} else {
+							title = "主窗口"
 						}
-						fmt.Printf("检测到页面但注入失败: %s (ID: %s): %v\n", title, t.ID, err)
-					} else {
-						title := t.Title
-						if title == "" {
-							title = "未命名"
-						}
-						fmt.Printf("检测到新页面或页面已重载: %s (ID: %s)，注入成功。\n", title, t.ID)
 					}
+					// 限制标题打印长度，防止超长 data:text 撑爆控制台
+					if len(title) > 60 {
+						title = title[:57] + "..."
+					}
+					fmt.Printf("[事件驱动] 捕获到目标页面变动，成功注入汉化: %s (ID: %s)\n", title, t.ID)
 				}
 			}
 		}
-
-		// 清理已关闭页面的记录
-		mu.Lock()
-		for id := range injectedSet {
-			if !activeTargetIDs[id] {
-				delete(injectedSet, id)
-			}
-		}
-		mu.Unlock()
-
-		time.Sleep(3 * time.Second)
 	}
 }
