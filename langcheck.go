@@ -127,7 +127,22 @@ func setIDELocale(locale string) error {
 	for _, argvPath := range paths {
 		data, err := os.ReadFile(argvPath)
 		if err != nil {
-			// 文件不存在则跳过（不强制创建）
+			if os.IsNotExist(err) {
+				// 自动创建父级目录
+				dir := filepath.Dir(argvPath)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					lastErr = fmt.Errorf("创建目录 %s 失败: %v", dir, err)
+					continue
+				}
+				// 写入初始的 json 配置
+				initialContent := fmt.Sprintf("{\n\t%s\n}\n", newField)
+				if err := os.WriteFile(argvPath, []byte(initialContent), 0644); err != nil {
+					lastErr = fmt.Errorf("创建并写入 %s 失败: %v", argvPath, err)
+					continue
+				}
+				written++
+				continue
+			}
 			continue
 		}
 
