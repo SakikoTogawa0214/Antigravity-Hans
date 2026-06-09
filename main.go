@@ -26,6 +26,11 @@ func getBanner() string {
 }
 
 func main() {
+	args := os.Args[1:]
+	if containsArg(args, "--nogui") {
+		HideConsole()
+	}
+
 	// 捕获 Ctrl+C
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -39,7 +44,6 @@ func main() {
 	overlaySource := LoadOverlaySource()
 
 	// 命令行参数模式（非交互）
-	args := os.Args[1:]
 	if len(args) > 0 {
 		// 静态补丁参数
 		if containsArg(args, "--patch") || containsArg(args, "-patch") {
@@ -47,10 +51,30 @@ func main() {
 			return
 		}
 
-		// 动态汉化参数
+		// 创建快捷方式参数
+		isShortcut := containsArg(args, "--shortcut") || containsArg(args, "-shortcut") || containsArg(args, "--create-shortcut")
 		isApp := containsArg(args, "--app") || containsArg(args, "-app")
 		isIDE := containsArg(args, "--ide") || containsArg(args, "-ide")
 
+		if isShortcut {
+			if isIDE {
+				if err := CreateChineseShortcut(AppIDE); err != nil {
+					fmt.Printf("[错误] 创建快捷方式失败: %v\n", err)
+				}
+				return
+			} else if isApp {
+				if err := CreateChineseShortcut(AppNormal); err != nil {
+					fmt.Printf("[错误] 创建快捷方式失败: %v\n", err)
+				}
+				return
+			}
+			// 未指定应用，默认两者都创建
+			_ = CreateChineseShortcut(AppNormal)
+			_ = CreateChineseShortcut(AppIDE)
+			return
+		}
+
+		// 动态汉化参数
 		if isIDE {
 			Run(AppIDE, overlaySource)
 			return
@@ -61,9 +85,12 @@ func main() {
 
 		// 传入了无效的参数，输出提示
 		fmt.Println("未知的命令行参数。用法：")
-		fmt.Println("  antigravity-hans --app    # 动态汉化 Antigravity")
-		fmt.Println("  antigravity-hans --ide    # 动态汉化 Antigravity IDE")
-		fmt.Println("  antigravity-hans --patch  # 静态补丁菜单")
+		fmt.Println("  antigravity-hans --app             # 动态汉化 Antigravity")
+		fmt.Println("  antigravity-hans --ide             # 动态汉化 Antigravity IDE")
+		fmt.Println("  antigravity-hans --patch           # 静态补丁菜单")
+		fmt.Println("  antigravity-hans --shortcut        # 生成两者的中文快捷方式/包装 App")
+		fmt.Println("  antigravity-hans --shortcut --app  # 生成 Antigravity 中文快捷方式")
+		fmt.Println("  antigravity-hans --shortcut --ide  # 生成 Antigravity IDE 中文快捷方式")
 		return
 	}
 
@@ -80,9 +107,11 @@ func runMainMenu(overlaySource string) {
 		fmt.Println("1. 动态汉化 (Antigravity)")
 		fmt.Println("2. 动态汉化 (Antigravity IDE)")
 		fmt.Println("3. 静态汉化 (Antigravity IDE)")
-		fmt.Println("4. 退出")
+		fmt.Println("4. 创建桌面中文快捷方式 (Antigravity)")
+		fmt.Println("5. 创建桌面中文快捷方式 (Antigravity IDE)")
+		fmt.Println("6. 退出")
 		fmt.Println("----------------------------------------")
-		fmt.Print("\n选择 (1-4): ")
+		fmt.Print("\n选择 (1-6): ")
 
 		line, _ := reader.ReadString('\n')
 		choice := strings.TrimSpace(line)
@@ -103,6 +132,18 @@ func runMainMenu(overlaySource string) {
 			runPatchMenu(overlaySource)
 			pressEnterToContinue(reader)
 		case "4":
+			fmt.Println("\n正在生成 Antigravity 中文快捷方式...")
+			if err := CreateChineseShortcut(AppNormal); err != nil {
+				fmt.Printf("[错误] 生成失败: %v\n", err)
+			}
+			pressEnterToContinue(reader)
+		case "5":
+			fmt.Println("\n正在生成 Antigravity IDE 中文快捷方式...")
+			if err := CreateChineseShortcut(AppIDE); err != nil {
+				fmt.Printf("[错误] 生成失败: %v\n", err)
+			}
+			pressEnterToContinue(reader)
+		case "6":
 			fmt.Println("再见！")
 			os.Exit(0)
 		default:
