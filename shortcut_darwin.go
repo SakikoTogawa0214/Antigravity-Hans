@@ -26,10 +26,17 @@ func CreateChineseShortcut(cfg AppConfig) error {
 		return fmt.Errorf("无法获取用户主目录: %v", err)
 	}
 
-	// 桌面路径
-	desktopDir := filepath.Join(homeDir, "Desktop")
+	// 确定应用程序目录
+	appsDir := "/Applications"
+	// 检查 /Applications 是否可写，若不可写则使用用户目录下的 Applications
+	testPath := filepath.Join(appsDir, ".tmp_write_test")
+	if err := os.WriteFile(testPath, []byte("test"), 0644); err != nil {
+		appsDir = filepath.Join(homeDir, "Applications")
+	} else {
+		_ = os.Remove(testPath)
+	}
 	wrapperAppName := cfg.Name + " 中文.app"
-	wrapperAppPath := filepath.Join(desktopDir, wrapperAppName)
+	wrapperAppPath := filepath.Join(appsDir, wrapperAppName)
 
 	// 创建目录结构
 	contentsDir := filepath.Join(wrapperAppPath, "Contents")
@@ -110,6 +117,6 @@ open "%s"
 		}
 	}
 
-	fmt.Printf("[成功] 已在桌面创建包装应用: %s\n", wrapperAppPath)
+	fmt.Printf("[成功] 已在应用程序目录创建包装应用: %s\n", wrapperAppPath)
 	return nil
 }

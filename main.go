@@ -107,8 +107,12 @@ func runMainMenu(overlaySource string) {
 		fmt.Println("1. 动态汉化 (Antigravity)")
 		fmt.Println("2. 动态汉化 (Antigravity IDE)")
 		fmt.Println("3. 静态汉化 (Antigravity IDE)")
-		fmt.Println("4. 创建桌面中文快捷方式 (Antigravity)")
-		fmt.Println("5. 创建桌面中文快捷方式 (Antigravity IDE)")
+		shortcutType := "桌面"
+		if IsMac {
+			shortcutType = "应用程序"
+		}
+		fmt.Printf("4. 创建%s中文快捷方式 (Antigravity)\n", shortcutType)
+		fmt.Printf("5. 创建%s中文快捷方式 (Antigravity IDE)\n", shortcutType)
 		fmt.Println("6. 退出")
 		fmt.Println("----------------------------------------")
 		fmt.Print("\n选择 (1-6): ")
