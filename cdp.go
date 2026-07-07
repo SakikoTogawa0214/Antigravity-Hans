@@ -357,7 +357,7 @@ func Watch(cfg AppConfig, overlaySource string, injectedSet map[string]bool, mu 
 			// 只监听主要的汉化页面标识
 			urlLower := strings.ToLower(info.URL)
 			var isTargetPage bool
-			if cfg.Port == 9222 { // IDE 版
+			if strings.Contains(strings.ToLower(cfg.Name), "ide") { // IDE 版
 				isTargetPage = strings.HasSuffix(urlLower, "workbench.html") ||
 					strings.HasSuffix(urlLower, "workbench-jetski-agent.html") ||
 					strings.Contains(urlLower, "workbench.html?") ||

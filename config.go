@@ -52,7 +52,7 @@ func buildAppNormal() AppConfig {
 func buildAppIDE() AppConfig {
 	cfg := AppConfig{
 		Name: "Antigravity IDE",
-		Port: 9222,
+		Port: 9522,
 	}
 	switch runtime.GOOS {
 	case "windows":

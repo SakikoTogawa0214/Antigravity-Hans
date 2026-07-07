@@ -552,6 +552,11 @@
     ['When toggled on, Antigravity IDE will use your AI credits to fulfill model requests once you\'re out of model quota. Antigravity IDE will always use your model quota first before using AI credits.', '开启后，当模型额度用完时，Antigravity IDE 将使用 AI 积分完成模型请求。Antigravity IDE 始终会先使用模型额度，再使用 AI 积分。'],
     ['Agent auto-executes commands matched by an allow list entry. For Unix shells, an allow list entry matches a command if its space-separated tokens form a prefix of the command\'s tokens. For PowerShell, the entry tokens may match any contiguous subsequence of the command tokens.', '智能体将自动执行与允许列表条目匹配的命令。对于 Unix Shell，如果允许列表条目的空格分隔令牌是该命令令牌的前缀，则匹配。对于 PowerShell，条目令牌可匹配命令令牌的任意连续子序列。'],
     ['When enabled, Agent can use browser tools to open URLs, read web pages, and interact with browser content. This allows the Agent access to important (and often critical) knowledge and methods of validation, but any browser integration does increase exposure to external malicious parties for security exploits.', '启用后，智能体可以使用浏览器工具打开 URL、读取网页并与浏览器内容交互。这能让智能体获取重要知识和验证方式，但任何浏览器集成都可能增加遭受外部恶意利用的风险。'],
+    ['Weekly Limit', '周额度'],
+    ['Five Hour Limit', '5小时限额'],
+    ['Claude and GPT models', 'Claude 和 GPT 模型'],
+    ['You can upgrade to a Google AI Ultra plan to receive higher rate limits.', '您可以升级到 Google AI Ultra 套餐以获得更高的速率限制。'],
+    ['Within each group, models share a weekly limit and a 5-hour limit. Quota is consumed proportionally to the cost of the tokens. Thus, limits will last longer with shorter tasks or using more cost-effective models. The 5-hour limit smooths out aggregate demand to fairly distribute global capacity across all users, while your weekly limit is tied directly to your individual tier.', '在每个分组中，模型共享每周限额和 5 小时限额。额度的消耗与 Token 的成本成比例。因此，使用较短的任务或更具性价比的模型可以让限额维持更久。5 小时限额平滑了总体需求，以便在所有用户之间公平地分配全局容量，而您的每周限额则直接与您的个人套餐等级挂钩。'],
   ]);
 
   const patterns = [
@@ -650,7 +655,12 @@
     [/Worked for (\d+)m/g, '已工作 $1 分钟'],
     [/(\d+) minutes? ago/g, '$1 分钟前'],
     [/(\d+) hours? ago/g, '$1 小时前'],
-    [/(\d+) days? ago/g, '$1 天前']
+    [/(\d+) days? ago/g, '$1 天前'],
+    [/You have used some of your weekly limit, it will fully refresh in (.+)\./gi, '您已使用部分周额度，将在 $1 后完全刷新。'],
+    [/You have used some of your 5-hour limit, it will fully refresh in (.+)\./gi, '您已使用部分 5 小时额度，将在 $1 后完全刷新。'],
+    [/(\d+) days?/gi, '$1 天'],
+    [/(\d+) hours?/gi, '$1 小时'],
+    [/(\d+) minutes?/gi, '$1 分钟']
   ];
 
   function translate(value) {
