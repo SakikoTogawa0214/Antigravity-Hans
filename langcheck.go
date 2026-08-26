@@ -240,33 +240,33 @@ func CheckAndPromptZhLangPack(reader *bufio.Reader) {
 
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════╗")
-	fmt.Println("║         【IDE 中文界面未完全启用】                  ║")
+	fmt.Println("║            【IDE 官方中文语言包检测】                ║")
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 	fmt.Println()
 
 	if !packInstalled {
-		fmt.Printf("  [-] 未检测到中文语言包 (%s)\n", zhLangPackID)
+		fmt.Printf("  [未配置] 未检测到官方中文语言包 (%s)\n", zhLangPackID)
 	} else {
-		fmt.Println("  [OK] 中文语言包已安装")
+		fmt.Println("  [成功] 官方中文语言包已安装")
 	}
 	if !localeIsZh {
 		currentLocale := locale
 		if currentLocale == "" {
 			currentLocale = "(未设置)"
 		}
-		fmt.Printf("  [-] 界面语言未设置为中文（当前: %s）\n", currentLocale)
+		fmt.Printf("  [未配置] 界面语言未设置为中文 (当前: %s)\n", currentLocale)
 	} else {
-		fmt.Println("  [OK] 界面语言已设置为中文")
+		fmt.Println("  [成功] 界面语言已设置为中文")
 	}
 
 	fmt.Println()
-	fmt.Println("  安装中文语言包并设置语言后，IDE 界面（菜单、提示等）")
-	fmt.Println("  将显示为中文，与本工具的动态汉化相互补充，效果更佳。")
+	fmt.Println("  安装语言包后，IDE 菜单栏与核心界面将切换为中文。")
+	fmt.Println("  与本工具动态汉化搭配使用，覆盖效果更完整。")
 	fmt.Println()
 
 	cliPath := getIDECLIPath()
 	if cliPath != "" {
-		fmt.Println("  检测到 IDE 命令行工具，可自动完成设置。")
+		fmt.Println("  检测到 IDE 命令行工具，可一键自动完成配置。")
 		fmt.Print("\n  是否立即自动配置？[Y/n]: ")
 		line, _ := reader.ReadString('\n')
 		answer := strings.TrimSpace(strings.ToLower(line))
@@ -280,7 +280,7 @@ func CheckAndPromptZhLangPack(reader *bufio.Reader) {
 				applyZhLocale()
 			}
 		} else {
-			fmt.Println("\n  [跳过] 您可以稍后手动安装语言包并配置语言。")
+			fmt.Println("\n  [提示] 您可以稍后手动安装语言包并配置语言。")
 		}
 	} else {
 		printManualInstallGuide()
@@ -295,21 +295,21 @@ func CheckAndPromptZhLangPack(reader *bufio.Reader) {
 // installZhLangPackCLI 通过 CLI 自动安装中文语言包，返回是否成功
 func installZhLangPackCLI(cliPath string) bool {
 	fmt.Printf("\n  正在安装 %s...\n", zhLangPackID)
-	fmt.Println("  (这可能需要几秒钟，请耐心等待)")
+	fmt.Println("  (可能需要几秒钟，请稍候)")
 
 	cmd := exec.Command(cliPath, "--install-extension", zhLangPackID)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("\n  [失败] 自动安装失败: %v\n", err)
+		fmt.Printf("\n  [错误] 自动安装失败: %v\n", err)
 		fmt.Println()
 		printManualInstallGuide()
 		return false
 	}
 
 	fmt.Println()
-	fmt.Println("  [OK] 中文语言包安装成功！")
+	fmt.Println("  [成功] 中文语言包安装成功！")
 	return true
 }
 
@@ -317,19 +317,19 @@ func installZhLangPackCLI(cliPath string) bool {
 func applyZhLocale() {
 	fmt.Println("  正在设置界面语言为中文 (zh-cn)...")
 	if err := setIDELocale("zh-cn"); err != nil {
-		fmt.Printf("  [失败] 设置语言失败: %v\n", err)
+		fmt.Printf("  [错误] 设置语言失败: %v\n", err)
 		fmt.Println("  请手动在 IDE 中按 Ctrl+Shift+P，搜索「Configure Display Language」进行设置。")
 		return
 	}
-	fmt.Println("  [OK] 界面语言已设置为中文！")
+	fmt.Println("  [成功] 界面语言已设置为中文！")
 	fmt.Println()
 	if IsMac {
-		fmt.Println("  [注意] 请完全退出并重启 Antigravity IDE 以生效（可能需要重启 1-2 次以刷新语言缓存）：")
+		fmt.Println("  [提示] 请完全退出并重启 Antigravity IDE 以生效（可能需要重启 1-2 次刷新语言缓存）：")
 		fmt.Println("     macOS: 菜单栏 → Antigravity IDE → 退出 (Cmd+Q)")
-		fmt.Println("     注意：仅关闭窗口（关闭按钮）不会退出应用，必须 Cmd+Q！")
+		fmt.Println("     注意：仅关闭窗口不会退出应用，必须 Cmd+Q 完全退出！")
 	} else {
-		fmt.Println("  [注意] 请完全关闭并重启 Antigravity IDE 以生效。")
-		fmt.Println("     (由于 IDE 内部存在缓存机制，可能需要手动关闭并重新打开 1-2 次)")
+		fmt.Println("  [提示] 请完全关闭并重启 Antigravity IDE 以生效。")
+		fmt.Println("     (由于 IDE 内部缓存机制，可能需要重新打开 1-2 次)")
 	}
 }
 

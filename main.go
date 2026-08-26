@@ -109,18 +109,17 @@ func runMainMenu(overlaySource string) {
 		fmt.Print(getBanner())
 		fmt.Println("Antigravity-Hans 启动器")
 		fmt.Println("----------------------------------------")
-		fmt.Println("1. 动态汉化 (Antigravity)")
-		fmt.Println("2. 动态汉化 (Antigravity IDE)")
-		fmt.Println("3. 静态汉化 (Antigravity IDE)")
+		fmt.Println("1. 启动 Antigravity (动态汉化)")
+		fmt.Println("2. 启动 Antigravity IDE (动态汉化)")
+		fmt.Println("3. 静态补丁管理 (仅支持 IDE)")
 		shortcutType := "桌面"
 		if IsMac {
 			shortcutType = "应用程序"
 		}
-		fmt.Printf("4. 创建%s中文快捷方式 (Antigravity)\n", shortcutType)
-		fmt.Printf("5. 创建%s中文快捷方式 (Antigravity IDE)\n", shortcutType)
-		fmt.Println("6. 退出")
+		fmt.Printf("4. 生成%s快捷启动方式\n", shortcutType)
+		fmt.Println("0. 退出")
 		fmt.Println("----------------------------------------")
-		fmt.Print("\n选择 (1-6): ")
+		fmt.Print("\n请选择 (0-4): ")
 
 		line, _ := reader.ReadString('\n')
 		choice := strings.TrimSpace(line)
@@ -129,34 +128,49 @@ func runMainMenu(overlaySource string) {
 		case "1":
 			fmt.Println("\n正在启动 Antigravity 动态汉化...")
 			Run(AppNormal, overlaySource)
-			fmt.Println("\n任务执行完毕。")
 			pressEnterToContinue(reader)
 		case "2":
 			fmt.Println("\n正在启动 Antigravity IDE 动态汉化...")
 			Run(AppIDE, overlaySource)
-			fmt.Println("\n任务执行完毕。")
 			pressEnterToContinue(reader)
 		case "3":
-			fmt.Println("\n正在运行静态汉化工具（实验性）...")
 			runPatchMenu(overlaySource)
 			pressEnterToContinue(reader)
 		case "4":
-			fmt.Println("\n正在生成 Antigravity 中文快捷方式...")
-			if err := CreateChineseShortcut(AppNormal); err != nil {
-				fmt.Printf("[错误] 生成失败: %v\n", err)
+			fmt.Printf("\n请选择要创建%s快捷方式的目标：\n", shortcutType)
+			fmt.Println(" [1] 全部生成 (默认)")
+			fmt.Println(" [2] 仅 APP")
+			fmt.Println(" [3] 仅 IDE")
+			fmt.Print("\n请选择 (1-3, 直接回车默认为 1): ")
+
+			subLine, _ := reader.ReadString('\n')
+			subChoice := strings.TrimSpace(subLine)
+			if subChoice == "" || subChoice == "1" {
+				fmt.Println("\n正在生成快捷方式...")
+				_ = CreateChineseShortcut(AppNormal)
+				_ = CreateChineseShortcut(AppIDE)
+			} else if subChoice == "2" {
+				fmt.Println("\n正在生成 Antigravity 中文快捷方式...")
+				if err := CreateChineseShortcut(AppNormal); err != nil {
+					fmt.Printf("[错误] 生成失败: %v\n", err)
+				}
+			} else if subChoice == "3" {
+				fmt.Println("\n正在生成 Antigravity IDE 中文快捷方式...")
+				if err := CreateChineseShortcut(AppIDE); err != nil {
+					fmt.Printf("[错误] 生成失败: %v\n", err)
+				}
+			} else {
+				fmt.Println("[提示] 操作已取消。")
 			}
 			pressEnterToContinue(reader)
-		case "5":
-			fmt.Println("\n正在生成 Antigravity IDE 中文快捷方式...")
-			if err := CreateChineseShortcut(AppIDE); err != nil {
-				fmt.Printf("[错误] 生成失败: %v\n", err)
-			}
-			pressEnterToContinue(reader)
-		case "6":
-			fmt.Println("再见！")
+		case "0", "q", "Q", "exit":
+			fmt.Println("\n感谢使用 Antigravity 汉化工具，再见！")
 			os.Exit(0)
 		default:
-			fmt.Println("无效的选择，请重新输入。")
+			if choice != "" {
+				fmt.Println("\n[提示] 无效的选择，请重新输入。")
+				pressEnterToContinue(reader)
+			}
 		}
 		clearScreen()
 	}
@@ -165,12 +179,12 @@ func runMainMenu(overlaySource string) {
 func runPatchMenu(overlaySource string) {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("\nAntigravity-Hans 静态注入工具")
+	fmt.Println("\nAntigravity-Hans 静态补丁管理工具")
 	fmt.Println("----------------------------------------")
 
 	apps := GetInstalledIDEApps()
 	if len(apps) == 0 {
-		fmt.Println("[ERROR] 本机未检测到任何 Antigravity IDE 安装实例。")
+		fmt.Println("[错误] 本机未检测到任何 Antigravity IDE 安装实例。")
 		return
 	}
 
@@ -180,15 +194,15 @@ func runPatchMenu(overlaySource string) {
 
 	fmt.Println("\n请选择您要执行的操作：")
 	fmt.Println(" 1. 注入静态汉化")
-	fmt.Println(" 2. 还原")
-	fmt.Println(" 3. 退出")
+	fmt.Println(" 2. 还原官方状态")
+	fmt.Println(" 0. 返回主菜单")
 	fmt.Println("----------------------------------------")
-	fmt.Print("选择 (1-3): ")
+	fmt.Print("请选择 (0-2): ")
 
 	line, _ := reader.ReadString('\n')
 	choice := strings.TrimSpace(line)
 	if choice != "1" && choice != "2" {
-		fmt.Println("已退出。")
+		fmt.Println("[提示] 已返回主菜单。")
 		return
 	}
 
@@ -203,21 +217,21 @@ func runPatchMenu(overlaySource string) {
 		}
 		fmt.Printf(" [%d] 全部应用\n", len(apps)+1)
 		fmt.Printf(" [%d] 取消\n", len(apps)+2)
-		fmt.Printf("\n选择 (1-%d): ", len(apps)+2)
+		fmt.Printf("\n请选择 (1-%d): ", len(apps)+2)
 
 		line, _ = reader.ReadString('\n')
 		var appChoice int
 		fmt.Sscan(strings.TrimSpace(line), &appChoice)
 
 		if appChoice == len(apps)+2 || appChoice == 0 {
-			fmt.Println("操作已取消。")
+			fmt.Println("[提示] 操作已取消。")
 			return
 		} else if appChoice == len(apps)+1 {
 			targetApps = apps
 		} else if appChoice >= 1 && appChoice <= len(apps) {
 			targetApps = []PatchAppInstance{apps[appChoice-1]}
 		} else {
-			fmt.Println("无效的选择，操作取消。")
+			fmt.Println("[提示] 无效的选择，操作已取消。")
 			return
 		}
 	}

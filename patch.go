@@ -64,13 +64,13 @@ func getResourcesDir(inst PatchAppInstance) string {
 
 // InstallPatch 为指定实例安装静态汉化补丁
 func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
-	fmt.Printf("\n>>> 正在为 %s 注入汉化补丁...\n", inst.Name)
+	fmt.Printf("\n[正在注入] 正在为 %s 注入汉化补丁...\n", inst.Name)
 
 	// 检测进程是否运行
 	pids := CheckProcessRunning(AppIDE, inst.ExePath)
 	if len(pids) > 0 {
 		fmt.Printf("[警告] 检测到 %s 正在运行 (PID: %v)。\n", inst.Name, pids)
-		fmt.Println("为了避免文件被系统占用，请先手动关闭该应用，然后重新运行本脚本。")
+		fmt.Println("[提示] 为了避免文件被占用，请先关闭该应用后重新执行本操作。")
 		return false
 	}
 
@@ -216,12 +216,12 @@ func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
 
 // UninstallPatch 还原静态汉化补丁
 func UninstallPatch(inst PatchAppInstance) bool {
-	fmt.Printf("\n>>> 正在还原 %s 至原始状态...\n", inst.Name)
+	fmt.Printf("\n[正在还原] 正在为 %s 还原至原始状态...\n", inst.Name)
 
 	pids := CheckProcessRunning(AppIDE, inst.ExePath)
 	if len(pids) > 0 {
 		fmt.Printf("[警告] 检测到 %s 正在运行 (PID: %v)。\n", inst.Name, pids)
-		fmt.Println("为了避免还原失败，请先手动关闭该应用。")
+		fmt.Println("[提示] 为了避免文件被占用，请先关闭该应用后重新执行本操作。")
 		return false
 	}
 

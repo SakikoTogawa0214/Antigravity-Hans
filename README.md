@@ -1,105 +1,81 @@
 # Antigravity 汉化工具 (Antigravity-Hans)
 
-这是一个专为 Google Antigravity 及 Antigravity IDE 开发的中文汉化工具。它提供了动态注入与静态补丁两种方式，方便您在使用中享受到更符合中文阅读习惯的界面体验。
+专为 **Google Antigravity** 及 **Antigravity IDE** 开发的中文汉化工具。
 
-> 基于 Go 重写，**无需安装任何运行时环境**，下载即用。
-
----
-
-## 预览图
-
-<img width="2560" height="1600" alt="81563fe34f792c74c50cb1e922ffd2ae" src="https://github.com/user-attachments/assets/4afcc033-34e4-47f7-bca1-53c341780b36" />
-<img width="2560" height="1600" alt="7c09d929bcb0e1103f01e2160c31ee36" src="https://github.com/user-attachments/assets/db2173c3-6c92-493c-bcb0-d3235133a381" />
+> **适配版本**： **Antigravity `2.10.0`** 与 **Antigravity IDE `2.5.5`** 。
 
 ---
 
-## 快速开始
+## 效果预览
 
-前往 [Releases](../../releases) 页面下载对应平台的可执行文件。
+<img width="2560" height="1600" alt="Antigravity 汉化预览 1" src="https://github.com/user-attachments/assets/4afcc033-34e4-47f7-bca1-53c341780b36" />
+<img width="2560" height="1600" alt="Antigravity 汉化预览 2" src="https://github.com/user-attachments/assets/db2173c3-6c92-493c-bcb0-d3235133a381" />
 
-### Windows
+---
 
-直接双击 `antigravity-hans-windows-amd64.exe` 运行，在菜单中选择汉化模式即可。
+## 快速使用
 
-### macOS
+前往 [Releases](../../releases) 下载对应平台的单文件即可运行：
 
-```bash
-# Apple Silicon (M 系列芯片)
-chmod +x antigravity-hans-macos-arm64
-./antigravity-hans-macos-arm64
+- **Windows**：双击 `antigravity-hans-windows-amd64.exe`，在交互菜单中选择对应模式。
+- **macOS**：
+  ```bash
+  chmod +x antigravity-hans-macos-*
+  ./antigravity-hans-macos-arm64  # Apple Silicon
+  ./antigravity-hans-macos-amd64  # Intel
+  ```
 
-# Intel Mac
-chmod +x antigravity-hans-macos-amd64
-./antigravity-hans-macos-amd64
+```text
+Antigravity-Hans 启动器
+----------------------------------------
+1. 启动 Antigravity (动态汉化)
+2. 启动 Antigravity IDE (动态汉化)
+3. 静态补丁管理 (仅支持 IDE)
+4. 生成桌面快捷启动方式
+0. 退出
+----------------------------------------
 ```
 
-> **提示**：若 macOS 提示"无法验证开发者"，请前往「系统设置 → 隐私与安全性」，点击「仍要打开」。
-
----
-
-## 模式说明
-
-### 1. 动态汉化
-- **原理**：以 `--remote-debugging-port` 启动目标应用，通过 CDP WebSocket 向页面注入 `antigravity-hans-overlay.js`。
-- **特点**：不修改任何本地程序文件，安全无痕；基于 CDP 事件订阅监听，实时捕获并立即完成汉化注入。
-- **缺点**：每次启动应用前需运行本工具（已解决，通过本工具创建快捷方式）。
-
-### 2. 静态汉化补丁（实验性）
-- **原理**：定位本地 Antigravity IDE 安装目录，修改 VS Code 架构的 HTML 文件，并重新计算 SHA256 校验和更新 `product.json`。
-- **特点**：一劳永逸，无需每次注入；支持一键还原至官方原始状态。
-- **缺点**：应用自动更新后会被覆盖，需重新注入。
-
----
-
-## 中文语言包检测
-
-首次启动时，工具会自动检测 Antigravity IDE 是否已安装官方中文语言包（`ms-ceintl.vscode-language-pack-zh-hans`）及界面语言设置，并在未配置时进行引导：
-
-- **自动安装**：调用 IDE 命令行工具一键安装语言包，并自动将 `argv.json` 中的 `locale` 设置为 `zh-cn`。
-- **手动指引**：若 CLI 不可用，则打印在扩展市场手动安装的操作步骤。
-- 语言包安装后，IDE 界面（菜单、状态栏、提示等）将切换为中文，与本工具的动态汉化相互补充，覆盖更完整。
-
-> **macOS 提示**：设置生效需**完全退出** IDE（菜单栏 → Cmd+Q），仅关闭窗口不会退出应用。
+> **提示**：首次使用 IDE 时，工具会自动检测并提示安装[官方中文语言包 (Chinese (Simplified) Language Pack)](https://marketplace.visualstudio.com/items?itemName=MS-CEINTL.vscode-language-pack-zh-hans)，确保菜单栏与底层编辑器完整汉化。
 
 ---
 
 ## 命令行参数
 
 ```bash
-# 直接启动（跳过菜单）
-antigravity-hans --app    # 动态汉化 Antigravity
-antigravity-hans --ide    # 动态汉化 Antigravity IDE
-antigravity-hans --patch  # 静态补丁菜单
+# 直接启动汉化
+antigravity-hans --app         # 动态汉化 Antigravity
+antigravity-hans --ide         # 动态汉化 Antigravity IDE
+antigravity-hans --patch       # 静态补丁管理 (仅支持 IDE)
 
-# 快捷方式生成
-antigravity-hans --shortcut        # 为两者生成中文快捷方式
+# 生成一键汉化快捷方式
+antigravity-hans --shortcut        # 为两者生成快捷方式
 antigravity-hans --shortcut --app  # 仅 Antigravity
 antigravity-hans --shortcut --ide  # 仅 Antigravity IDE
 ```
 
 ---
 
-## 文件结构
+## 汉化模式
 
-```text
-├── *.go                        # Go 源码
-├── go.mod / go.sum             # Go 模块定义
-├── antigravity-hans-overlay.js # 核心汉化字典与 DOM 替换补丁
-├── build.sh                    # 一键交叉编译脚本
-└── README.md
-```
+1. **动态汉化（推荐）**：
+   - 支持 Antigravity 及 Antigravity IDE。
+   - 基于 CDP 远程调试协议无感注入，不修改任何本地二进制与文件，安全无痕。
+   - 可通过 `--shortcut` 参数一键生成桌面快捷方式，日常双击即可自动启动汉化。
+2. **静态补丁（仅支持 Antigravity IDE）**：
+   - 直接修改本地 IDE 安装包资源并修复校验和，一劳永逸，支持随时一键还原。
 
-## 从源码编译
+---
 
-需要安装 [Go 1.21+](https://go.dev/dl/)：
+## 源码编译
 
 ```bash
 ./build.sh
 ```
 
-编译产物输出至 `dist/` 目录。
-
 ---
 
 ## 致谢
-- 汉化词库：https://github.com/kdczyz/antigravity-chinese
+
+- 汉化词库参考：[antigravity-chinese](https://github.com/kdczyz/antigravity-chinese)
+
